@@ -87,7 +87,7 @@
 ;; UI & Theme
 ;; ======================
 
-(setq doom-theme 'doom-dracula)
+(setq doom-theme 'doom-one)
 (setq display-line-numbers-type t)
 (setq org-directory "~/org/")
 
@@ -177,6 +177,74 @@
                 c++-mode-hook))
   (add-hook hook #'tree-sitter-mode)
   (add-hook hook #'tree-sitter-hl-mode))
+
+
+
+(defun my/cmake-configure ()
+  "Run cmake -S . -B build and link compile_commands.json."
+  (interactive)
+  (let ((default-directory (projectile-project-root)))
+    (compile "cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
+    (run-at-time
+     "1 sec" nil
+     (lambda ()
+       (let ((cmd (cond
+                   ((eq system-type 'windows-nt)
+                    "cmd /c copy build\\compile_commands.json .")
+                   ((memq system-type '(gnu/linux darwin))
+                    "ln -sf build/compile_commands.json ."))))
+         (when cmd (compile cmd)))))))
+
+(defun my/cmake-build ()
+  (interactive)
+  (let ((default-directory (projectile-project-root)))
+    (compile "cmake --build build")))
+
+(defun my/cmake-run ()
+  (interactive)
+  (let* ((default-directory (projectile-project-root))
+         (exe (cond
+               ((eq system-type 'windows-nt) "build\\main.exe")
+               (t "./build/main"))))
+    (compile exe)))
+
+(defun my/cmake-test ()
+  (interactive)
+  (let ((default-directory (projectile-project-root)))
+    (compile "ctest --test-dir build")))
+
+(defun my/cmake-debug ()
+  (interactive)
+  (let* ((default-directory (projectile-project-root))
+         (cmd (cond
+               ((eq system-type 'windows-nt) "gdb build\\main.exe")
+               (t "gdb ./build/main"))))
+    (compile cmd)))
+
+
+(map! :after cc-mode
+      :map (c-mode-map c++-mode-map)
+      :localleader
+      :prefix ("c" . "CMake")
+      :desc "Configure" "c" #'my/cmake-configure
+      :desc "Build"     "b" #'my/cmake-build
+      :desc "Run"       "r" #'my/cmake-run
+      :desc "CTest"     "t" #'my/cmake-test
+      :desc "Debug"     "d" #'my/cmake-debug)
+
+;; 在 CMake mode 下也添加相同快捷键
+(use-package! cmake-mode
+  :mode "CMakeLists\\.txt\\'"
+  :init
+  (map! :map cmake-mode-map
+        :localleader
+        :prefix ("c" . "CMake")
+        :desc "Configure" "c" #'my/cmake-configure
+        :desc "Build"     "b" #'my/cmake-build
+        :desc "Run"       "r" #'my/cmake-run
+        :desc "CTest"     "t" #'my/cmake-test
+        :desc "Debug"     "d" #'my/cmake-debug))
+
 
 ;; Optional: Install language parsers
 ;; M-x tree-sitter-install-language-grammar
